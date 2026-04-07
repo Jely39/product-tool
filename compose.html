@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>商品图合成工具</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            font-family: system-ui, 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            margin-top: 0;
+            color: #8B3C2C;
+            font-size: 24px;
+            text-align: center;
+        }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .bg-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .bg-btn {
+            background: #eee;
+            border: 2px solid #ccc;
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .bg-btn.active {
+            background: #8B3C2C;
+            border-color: #8B3C2C;
+            color: white;
+        }
+        .upload-btn, .download-btn {
+            background: #2c6e8b;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .download-btn {
+            background: #2c8b5e;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f9f9f9;
+            padding: 8px 15px;
+            border-radius: 40px;
+        }
+        .slider-container label {
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 150px;
+        }
+        .canvas-area {
+            display: flex;
+            justify-content: center;
+            border: 2px dashed #ccc;
+            border-radius: 16px;
+            background: #fafafa;
+            padding: 20px;
+        }
+        canvas {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #fff;
+            cursor: move;
+        }
+        .info {
+            margin-top: 20px;
+            background: #f9f2e7;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            color: #8B3C2C;
+            text-align: center;
+        }
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🍷 商品图统一合成工具</h1>
+    <p style="text-align:center">上传透明底商品图，选择背景模板，可拖拽移动、缩放商品位置</p>
+
+    <div class="toolbar">
+        <div class="bg-buttons" id="bgButtons"></div>
+        <label class="upload-btn">
+            📂 上传商品图
+            <input type="file" id="productUpload" accept="image/png" style="display:none">
+        </label>
+        <div class="control-group">
+            <div class="slider-container">
+                <label>🔍 缩放商品</label>
+                <input type="range" id="scaleSlider" min="0.2" max="2.0" step="0.01" value="1.0">
+                <span id="scaleValue">100%</span>
+            </div>
+            <button class="download-btn" id="downloadBtn">💾 下载合成图</button>
+        </div>
+    </div>
+
+    <div class="canvas-area">
+        <canvas id="previewCanvas" width="800" height="800"></canvas>
+    </div>
+    <div class="info">
+        ✅ 使用说明：<br>
+        1. 点击上方按钮选择背景模板。<br>
+        2. 上传透明底 PNG 商品图。<br>
+        3. 在画布上<strong>按住鼠标左键拖拽</strong>移动商品位置。<br>
+        4. 拖动滑块调整商品大小。<br>
+        5. 满意后点击“下载合成图”保存。
+    </div>
+    <footer>
+        提示：背景图已预设，商品图支持拖拽和缩放，合成图片可直接用于网站。
+    </footer>
+</div>
+
+<script>
+    // ---------- 配置：四个背景图（请替换成你自己的图片URL）----------
+    // 注意：这些图片必须和此HTML文件放在同一个文件夹，并且文件名要匹配
+    const BACKGROUNDS = [
+        { name: "列表页背景", url: "bg_list.png" },
+        { name: "详情页背景", url: "bg_detail.png" },
+        { name: "推荐位背景", url: "bg_recommend.png" },
+        { name: "购物车背景", url: "bg_cart.png" }
+    ];
+
+    let currentBgIndex = 0;
+    let bgImage = new Image();
+    let productImage = null;
+    let canvas = document.getElementById('previewCanvas');
+    let ctx = canvas.getContext('2d');
+
+    let productX = 400, productY = 400;
+    let productScale = 1.0;
+    let dragging = false;
+    let dragStartX = 0, dragStartY = 0;
+    let lastProductX = 400, lastProductY = 400;
+
+    function initButtons() {
+        const container = document.getElementById('bgButtons');
+        BACKGROUNDS.forEach((bg, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'bg-btn' + (idx === currentBgIndex ? ' active' : '');
+            btn.textContent = bg.name;
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentBgIndex = idx;
+                loadBackground();
+            });
+            container.appendChild(btn);
+        });
+    }
+
+    function loadBackground() {
+        const url = BACKGROUNDS[currentBgIndex].url;
+        bgImage.src = url;
+        bgImage.onload = () => {
+            canvas.width = bgImage.width;
+            canvas.height = bgImage.height;
+            productX = canvas.width / 2;
+            productY = canvas.height / 2;
+            lastProductX = productX;
+            lastProductY = productY;
+            draw();
+        };
+        bgImage.onerror = () => {
+            alert(`背景图 ${BACKGROUNDS[currentBgIndex].name} 加载失败，请检查图片路径是否正确。`);
+        };
+    }
+
+    function draw() {
+        if (!bgImage.complete || bgImage.naturalWidth === 0) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        if (productImage) {
+            const imgW = productImage.width;
+            const imgH = productImage.height;
+            const drawW = imgW * productScale;
+            const drawH = imgH * productScale;
+            const drawX = productX - drawW / 2;
+            const drawY = productY - drawH / 2;
+            ctx.drawImage(productImage, drawX, drawY, drawW, drawH);
+        }
+    }
+
+    document.getElementById('productUpload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                productImage = img;
+                productScale = 1.0;
+                document.getElementById('scaleSlider').value = 1.0;
+                document.getElementById('scaleValue').innerText = '100%';
+                productX = canvas.width / 2;
+                productY = canvas.height / 2;
+                lastProductX = productX;
+                lastProductY = productY;
+                draw();
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    const slider = document.getElementById('scaleSlider');
+    const scaleVal = document.getElementById('scaleValue');
+    slider.addEventListener('input', (e) => {
+        productScale = parseFloat(e.target.value);
+        scaleVal.innerText = Math.round(productScale * 100) + '%';
+        draw();
+    });
+
+    function getMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        let clientX, clientY;
+        if (e.touches) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        let canvasX = (clientX - rect.left) * scaleX;
+        let canvasY = (clientY - rect.top) * scaleY;
+        canvasX = Math.min(Math.max(canvasX, 0), canvas.width);
+        canvasY = Math.min(Math.max(canvasY, 0), canvas.height);
+        return { x: canvasX, y: canvasY };
+    }
+
+    function onMouseDown(e) {
+        if (!productImage) return;
+        dragging = true;
+        const pos = getMousePos(e);
+        dragStartX = pos.x;
+        dragStartY = pos.y;
+        lastProductX = productX;
+        lastProductY = productY;
+        e.preventDefault();
+    }
+
+    function onMouseMove(e) {
+        if (!dragging || !productImage) return;
+        const pos = getMousePos(e);
+        const dx = pos.x - dragStartX;
+        const dy = pos.y - dragStartY;
+        productX = lastProductX + dx;
+        productY = lastProductY + dy;
+        if (productImage) {
+            const halfW = (productImage.width * productScale) / 2;
+            const halfH = (productImage.height * productScale) / 2;
+            productX = Math.min(Math.max(productX, halfW), canvas.width - halfW);
+            productY = Math.min(Math.max(productY, halfH), canvas.height - halfH);
+        }
+        draw();
+    }
+
+    function onMouseUp() {
+        dragging = false;
+    }
+
+    canvas.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('touchstart', onMouseDown);
+    window.addEventListener('touchmove', onMouseMove);
+    window.addEventListener('touchend', onMouseUp);
+
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+        if (!bgImage.complete) {
+            alert("背景图尚未加载完成");
+            return;
+        }
+        const link = document.createElement('a');
+        link.download = `商品合成图_${BACKGROUNDS[currentBgIndex].name}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    });
+
+    initButtons();
+    loadBackground();
+</script>
+</body>
+</html>
