@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>商品图合成工具</title>
+    <title>商品图合成工具（支持透明背景+滚轮缩放）</title>
     <style>
         * {
             box-sizing: border-box;
@@ -143,15 +143,17 @@
         3. <strong>鼠标滚轮</strong>可快速缩放商品图。<br>
         4. <strong>按住鼠标左键拖拽</strong>移动商品位置。<br>
         5. 拖动滑块也可微调大小。<br>
-        6. 满意后点击“下载合成图”保存。
+        6. 满意后点击“下载合成图”保存。<br>
+        📌 输出图片为 WebP 格式（支持透明，体积小），若浏览器不支持则自动降级为 PNG。
     </div>
     <footer>
-        提示：背景图已预设，商品图支持拖拽、滚轮缩放，合成图片可直接用于网站。
+        提示：背景图请使用透明背景 PNG，商品图也需透明底，最终合成图保留透明通道。
     </footer>
 </div>
 
 <script>
     // ---------- 配置：四个背景图（请替换成你自己的图片URL）----------
+    // 注意：这些图片必须和此HTML文件放在同一个文件夹，并且文件名要匹配
     const BACKGROUNDS = [
         { name: "列表页背景", url: "bg_list.png" },
         { name: "详情页背景", url: "bg_detail.png" },
@@ -255,7 +257,7 @@
     canvas.addEventListener('wheel', (e) => {
         if (!productImage) return;
         e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;  // 向下滚动缩小，向上滚动放大
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
         let newScale = productScale * delta;
         newScale = Math.min(Math.max(newScale, 0.2), 3.0);
         if (newScale === productScale) return;
@@ -325,7 +327,7 @@
     window.addEventListener('touchmove', onMouseMove);
     window.addEventListener('touchend', onMouseUp);
 
-    // 下载合成图
+    // 下载合成图（WebP 优先，支持透明，自动缩小到800px宽）
     document.getElementById('downloadBtn').addEventListener('click', () => {
         try {
             if (!bgImage.complete || bgImage.naturalWidth === 0) {
@@ -336,15 +338,38 @@
                 alert("请先上传商品图");
                 return;
             }
-            const dataURL = canvas.toDataURL('image/png');
-            if (dataURL === 'data:,') {
-                alert("画布内容为空，请确保背景图和商品图已正确加载");
-                return;
+
+            // 1. 缩小输出尺寸：限制最大宽度为 800px（保持比例）
+            const maxWidth = 800;
+            let outputCanvas = canvas;
+            if (canvas.width > maxWidth) {
+                const tempCanvas = document.createElement('canvas');
+                const ratio = maxWidth / canvas.width;
+                tempCanvas.width = maxWidth;
+                tempCanvas.height = canvas.height * ratio;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+                outputCanvas = tempCanvas;
             }
+
+            // 2. 尝试输出 WebP（支持透明），质量 0.85
+            let dataURL = null;
+            let fileExt = 'webp';
+            try {
+                dataURL = outputCanvas.toDataURL('image/webp', 0.85);
+                if (dataURL.indexOf('image/webp') === -1) throw new Error('WebP not supported');
+            } catch (e) {
+                // 降级为 PNG
+                dataURL = outputCanvas.toDataURL('image/png');
+                fileExt = 'png';
+                console.warn("浏览器不支持 WebP，已降级为 PNG");
+            }
+
             const link = document.createElement('a');
-            link.download = `商品合成图_${BACKGROUNDS[currentBgIndex].name}.png`;
+            link.download = `商品合成图_${BACKGROUNDS[currentBgIndex].name}.${fileExt}`;
             link.href = dataURL;
             link.click();
+            
         } catch (err) {
             alert("下载失败：" + err.message);
             console.error(err);
