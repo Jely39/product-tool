@@ -115,7 +115,7 @@
 <body>
 <div class="container">
     <h1>🍷 商品图统一合成工具</h1>
-    <p style="text-align:center">上传透明底商品图，选择背景模板，可拖拽移动、缩放商品位置</p>
+    <p style="text-align:center">上传透明底商品图，选择背景模板，可拖拽移动、滚轮缩放商品位置</p>
 
     <div class="toolbar">
         <div class="bg-buttons" id="bgButtons"></div>
@@ -126,7 +126,7 @@
         <div class="control-group">
             <div class="slider-container">
                 <label>🔍 缩放商品</label>
-                <input type="range" id="scaleSlider" min="0.2" max="2.0" step="0.01" value="1.0">
+                <input type="range" id="scaleSlider" min="0.2" max="3.0" step="0.01" value="1.0">
                 <span id="scaleValue">100%</span>
             </div>
             <button class="download-btn" id="downloadBtn">💾 下载合成图</button>
@@ -140,18 +140,18 @@
         ✅ 使用说明：<br>
         1. 点击上方按钮选择背景模板。<br>
         2. 上传透明底 PNG 商品图。<br>
-        3. 在画布上<strong>按住鼠标左键拖拽</strong>移动商品位置。<br>
-        4. 拖动滑块调整商品大小。<br>
-        5. 满意后点击“下载合成图”保存。
+        3. <strong>鼠标滚轮</strong>可快速缩放商品图。<br>
+        4. <strong>按住鼠标左键拖拽</strong>移动商品位置。<br>
+        5. 拖动滑块也可微调大小。<br>
+        6. 满意后点击“下载合成图”保存。
     </div>
     <footer>
-        提示：背景图已预设，商品图支持拖拽和缩放，合成图片可直接用于网站。
+        提示：背景图已预设，商品图支持拖拽、滚轮缩放，合成图片可直接用于网站。
     </footer>
 </div>
 
 <script>
     // ---------- 配置：四个背景图（请替换成你自己的图片URL）----------
-    // 注意：这些图片必须和此HTML文件放在同一个文件夹，并且文件名要匹配
     const BACKGROUNDS = [
         { name: "列表页背景", url: "bg_list.png" },
         { name: "详情页背景", url: "bg_detail.png" },
@@ -219,6 +219,7 @@
         }
     }
 
+    // 上传商品图
     document.getElementById('productUpload').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -241,6 +242,7 @@
         reader.readAsDataURL(file);
     });
 
+    // 滑块缩放
     const slider = document.getElementById('scaleSlider');
     const scaleVal = document.getElementById('scaleValue');
     slider.addEventListener('input', (e) => {
@@ -249,6 +251,21 @@
         draw();
     });
 
+    // 鼠标滚轮缩放
+    canvas.addEventListener('wheel', (e) => {
+        if (!productImage) return;
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;  // 向下滚动缩小，向上滚动放大
+        let newScale = productScale * delta;
+        newScale = Math.min(Math.max(newScale, 0.2), 3.0);
+        if (newScale === productScale) return;
+        productScale = newScale;
+        slider.value = productScale;
+        scaleVal.innerText = Math.round(productScale * 100) + '%';
+        draw();
+    }, { passive: false });
+
+    // 获取鼠标在画布上的坐标
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -268,6 +285,7 @@
         return { x: canvasX, y: canvasY };
     }
 
+    // 拖拽移动
     function onMouseDown(e) {
         if (!productImage) return;
         dragging = true;
@@ -286,6 +304,7 @@
         const dy = pos.y - dragStartY;
         productX = lastProductX + dx;
         productY = lastProductY + dy;
+        // 边界限制
         if (productImage) {
             const halfW = (productImage.width * productScale) / 2;
             const halfH = (productImage.height * productScale) / 2;
@@ -306,15 +325,30 @@
     window.addEventListener('touchmove', onMouseMove);
     window.addEventListener('touchend', onMouseUp);
 
+    // 下载合成图
     document.getElementById('downloadBtn').addEventListener('click', () => {
-        if (!bgImage.complete) {
-            alert("背景图尚未加载完成");
-            return;
+        try {
+            if (!bgImage.complete || bgImage.naturalWidth === 0) {
+                alert("背景图尚未加载完成，请稍后再试");
+                return;
+            }
+            if (!productImage) {
+                alert("请先上传商品图");
+                return;
+            }
+            const dataURL = canvas.toDataURL('image/png');
+            if (dataURL === 'data:,') {
+                alert("画布内容为空，请确保背景图和商品图已正确加载");
+                return;
+            }
+            const link = document.createElement('a');
+            link.download = `商品合成图_${BACKGROUNDS[currentBgIndex].name}.png`;
+            link.href = dataURL;
+            link.click();
+        } catch (err) {
+            alert("下载失败：" + err.message);
+            console.error(err);
         }
-        const link = document.createElement('a');
-        link.download = `商品合成图_${BACKGROUNDS[currentBgIndex].name}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
     });
 
     initButtons();
