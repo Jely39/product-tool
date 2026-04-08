@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>商品图合成工具（自适应缩放）</title>
+    <title>睿纳德平台商品图合成工具</title>
     <style>
         * {
             box-sizing: border-box;
@@ -206,7 +206,7 @@
             </div>
             <div class="example-note">
                 💡 <strong>模仿建议：</strong><br>
-                • 商品图尽量在居中位置<br>
+                • 商品图尽量居中偏下位置<br>
                 • 大小约占背景的 60%~80%<br>
                 • 可参考右侧示例的比例和位置<br>
                 • 如果您的商品有特殊造型，可适当调整
@@ -220,7 +220,7 @@
 </div>
 
 <script>
-    // 配置：四个背景图及对应的示例图
+    // 背景配置（请修改为你的实际图片URL）
     const BACKGROUNDS = [
         { name: "列表页背景", url: "bg_list.png", sample: "sample_list.png" },
         { name: "详情页背景", url: "bg_detail.png", sample: "sample_detail.png" },
@@ -229,7 +229,7 @@
     ];
 
     let currentBgIndex = 0;
-    let bgImage = new Image();
+    let bgImages = [];          // 预加载的背景图对象数组
     let productImage = null;
     let canvas = document.getElementById('previewCanvas');
     let ctx = canvas.getContext('2d');
@@ -239,62 +239,60 @@
     let dragging = false;
     let dragStartX = 0, dragStartY = 0;
     let lastProductX = 0, lastProductY = 0;
-    let sliderMin = 0.1; // 动态调整
 
-    // 辅助：更新滑块范围和显示
-    function updateSliderRange(minScale) {
-        const slider = document.getElementById('scaleSlider');
-        slider.min = minScale;
-        if (productScale < minScale) {
-            productScale = minScale;
+    // 预加载所有背景图
+    function preloadBackgrounds() {
+        let loadedCount = 0;
+        BACKGROUNDS.forEach((bg, idx) => {
+            const img = new Image();
+            img.onload = () => {
+                loadedCount++;
+                if (loadedCount === BACKGROUNDS.length) {
+                    setBackground(0); // 所有背景加载完后显示第一个
+                }
+            };
+            img.onerror = () => {
+                console.warn(`背景图 ${bg.name} 加载失败，请检查路径`);
+                loadedCount++;
+                if (loadedCount === BACKGROUNDS.length) setBackground(0);
+            };
+            img.src = bg.url;
+            bgImages[idx] = img;
+        });
+    }
+
+    // 设置当前背景
+    function setBackground(index) {
+        currentBgIndex = index;
+        const bgImg = bgImages[index];
+        if (!bgImg || !bgImg.complete) {
+            setTimeout(() => setBackground(index), 100);
+            return;
+        }
+        canvas.width = bgImg.width;
+        canvas.height = bgImg.height;
+        // 重新适配商品图尺寸（如果已上传）
+        if (productImage) {
+            const fitScale = calcFitScale(productImage.width, productImage.height, canvas.width, canvas.height);
+            productScale = fitScale;
+            const slider = document.getElementById('scaleSlider');
+            slider.min = fitScale;
             slider.value = productScale;
             document.getElementById('scaleValue').innerText = Math.round(productScale * 100) + '%';
+            productX = canvas.width / 2;
+            productY = canvas.height / 2;
+            lastProductX = productX;
+            lastProductY = productY;
+        } else {
+            productX = canvas.width / 2;
+            productY = canvas.height / 2;
         }
-    }
-
-    // 计算商品图适配背景的初始缩放比例（使最长边不超过画布对应边的 80%，并留边距）
-    function calcFitScale(productW, productH, canvasW, canvasH) {
-        const targetRatio = 0.7; // 商品占画布最大比例，避免贴边
-        const scaleW = (canvasW * targetRatio) / productW;
-        const scaleH = (canvasH * targetRatio) / productH;
-        return Math.min(scaleW, scaleH);
-    }
-
-    // 上传商品图后的处理
-    function handleProductImage(img) {
-        productImage = img;
-        const canvasW = canvas.width;
-        const canvasH = canvas.height;
-        const fitScale = calcFitScale(img.width, img.height, canvasW, canvasH);
-        productScale = fitScale;
-        // 更新滑块范围
-        const slider = document.getElementById('scaleSlider');
-        slider.min = fitScale;
-        slider.max = 3.0;
-        slider.value = productScale;
-        document.getElementById('scaleValue').innerText = Math.round(productScale * 100) + '%';
-        // 居中放置
-        productX = canvasW / 2;
-        productY = canvasH / 2;
-        lastProductX = productX;
-        lastProductY = productY;
         draw();
-    }
-
-    function initButtons() {
-        const container = document.getElementById('bgButtons');
-        BACKGROUNDS.forEach((bg, idx) => {
-            const btn = document.createElement('div');
-            btn.className = 'bg-btn' + (idx === currentBgIndex ? ' active' : '');
-            btn.textContent = bg.name;
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentBgIndex = idx;
-                loadBackground();
-                updateSampleImage();
-            });
-            container.appendChild(btn);
+        updateSampleImage();
+        // 高亮按钮
+        document.querySelectorAll('.bg-btn').forEach((btn, i) => {
+            if (i === index) btn.classList.add('active');
+            else btn.classList.remove('active');
         });
     }
 
@@ -307,36 +305,18 @@
         };
     }
 
-    function loadBackground() {
-        const url = BACKGROUNDS[currentBgIndex].url;
-        bgImage.src = url;
-        bgImage.onload = () => {
-            canvas.width = bgImage.width;
-            canvas.height = bgImage.height;
-            // 重新适配已上传的商品图
-            if (productImage) {
-                const fitScale = calcFitScale(productImage.width, productImage.height, canvas.width, canvas.height);
-                productScale = fitScale;
-                const slider = document.getElementById('scaleSlider');
-                slider.min = fitScale;
-                slider.value = productScale;
-                document.getElementById('scaleValue').innerText = Math.round(productScale * 100) + '%';
-                productX = canvas.width / 2;
-                productY = canvas.height / 2;
-                lastProductX = productX;
-                lastProductY = productY;
-            }
-            draw();
-        };
-        bgImage.onerror = () => {
-            alert(`背景图 ${BACKGROUNDS[currentBgIndex].name} 加载失败，请检查图片路径是否正确。`);
-        };
+    function calcFitScale(productW, productH, canvasW, canvasH) {
+        const targetRatio = 0.7;
+        const scaleW = (canvasW * targetRatio) / productW;
+        const scaleH = (canvasH * targetRatio) / productH;
+        return Math.min(scaleW, scaleH);
     }
 
     function draw() {
-        if (!bgImage.complete || bgImage.naturalWidth === 0) return;
+        const bgImg = bgImages[currentBgIndex];
+        if (!bgImg || !bgImg.complete) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
         if (productImage) {
             const imgW = productImage.width;
             const imgH = productImage.height;
@@ -356,7 +336,21 @@
         reader.onload = (event) => {
             const img = new Image();
             img.onload = () => {
-                handleProductImage(img);
+                productImage = img;
+                const bgImg = bgImages[currentBgIndex];
+                if (bgImg && bgImg.complete) {
+                    const fitScale = calcFitScale(img.width, img.height, bgImg.width, bgImg.height);
+                    productScale = fitScale;
+                    const slider = document.getElementById('scaleSlider');
+                    slider.min = fitScale;
+                    slider.value = productScale;
+                    document.getElementById('scaleValue').innerText = Math.round(productScale * 100) + '%';
+                    productX = bgImg.width / 2;
+                    productY = bgImg.height / 2;
+                    lastProductX = productX;
+                    lastProductY = productY;
+                }
+                draw();
             };
             img.src = event.target.result;
         };
@@ -387,6 +381,7 @@
         draw();
     }, { passive: false });
 
+    // 鼠标拖拽移动商品
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -424,7 +419,6 @@
         const dy = pos.y - dragStartY;
         productX = lastProductX + dx;
         productY = lastProductY + dy;
-        // 边界限制
         if (productImage) {
             const halfW = (productImage.width * productScale) / 2;
             const halfH = (productImage.height * productScale) / 2;
@@ -448,7 +442,8 @@
     // 下载合成图
     document.getElementById('downloadBtn').addEventListener('click', () => {
         try {
-            if (!bgImage.complete || bgImage.naturalWidth === 0) {
+            const bgImg = bgImages[currentBgIndex];
+            if (!bgImg || !bgImg.complete) {
                 alert("背景图尚未加载完成");
                 return;
             }
@@ -477,9 +472,20 @@
         }
     });
 
+    // 生成按钮
+    function initButtons() {
+        const container = document.getElementById('bgButtons');
+        BACKGROUNDS.forEach((bg, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'bg-btn';
+            btn.textContent = bg.name;
+            btn.addEventListener('click', () => setBackground(idx));
+            container.appendChild(btn);
+        });
+    }
+
     initButtons();
-    loadBackground();
-    updateSampleImage();
+    preloadBackgrounds();
 </script>
 </body>
 </html>
