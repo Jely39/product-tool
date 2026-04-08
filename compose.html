@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>商品图合成工具（支持透明背景+滚轮缩放）</title>
+    <title>商品图合成工具（含动态示例）</title>
     <style>
         * {
             box-sizing: border-box;
@@ -15,7 +15,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 24px;
@@ -27,6 +27,49 @@
             color: #8B3C2C;
             font-size: 24px;
             text-align: center;
+        }
+        .main-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        .tool-panel {
+            flex: 2;
+            min-width: 300px;
+        }
+        .example-panel {
+            flex: 1;
+            min-width: 250px;
+            background: #f9f9f9;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #e0e0e0;
+            align-self: flex-start;
+        }
+        .example-panel h3 {
+            margin-top: 0;
+            color: #8B3C2C;
+            font-size: 18px;
+            text-align: center;
+        }
+        .example-image {
+            text-align: center;
+            margin: 15px 0;
+        }
+        .example-image img {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #fff;
+        }
+        .example-note {
+            font-size: 13px;
+            color: #666;
+            background: #fff9e6;
+            padding: 12px;
+            border-radius: 12px;
+            margin-top: 15px;
         }
         .toolbar {
             display: flex;
@@ -87,6 +130,7 @@
             border-radius: 16px;
             background: #fafafa;
             padding: 20px;
+            margin-bottom: 20px;
         }
         canvas {
             max-width: 100%;
@@ -110,6 +154,11 @@
             font-size: 12px;
             color: #888;
         }
+        @media (max-width: 800px) {
+            .main-layout {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -117,34 +166,55 @@
     <h1>🍷 商品图统一合成工具</h1>
     <p style="text-align:center">上传透明底商品图，选择背景模板，可拖拽移动、滚轮缩放商品位置</p>
 
-    <div class="toolbar">
-        <div class="bg-buttons" id="bgButtons"></div>
-        <label class="upload-btn">
-            📂 上传商品图
-            <input type="file" id="productUpload" accept="image/png" style="display:none">
-        </label>
-        <div class="control-group">
-            <div class="slider-container">
-                <label>🔍 缩放商品</label>
-                <input type="range" id="scaleSlider" min="0.2" max="3.0" step="0.01" value="1.0">
-                <span id="scaleValue">100%</span>
+    <div class="main-layout">
+        <!-- 工具区域 -->
+        <div class="tool-panel">
+            <div class="toolbar">
+                <div class="bg-buttons" id="bgButtons"></div>
+                <label class="upload-btn">
+                    📂 上传商品图
+                    <input type="file" id="productUpload" accept="image/png" style="display:none">
+                </label>
+                <div class="control-group">
+                    <div class="slider-container">
+                        <label>🔍 缩放商品</label>
+                        <input type="range" id="scaleSlider" min="0.2" max="3.0" step="0.01" value="1.0">
+                        <span id="scaleValue">100%</span>
+                    </div>
+                    <button class="download-btn" id="downloadBtn">💾 下载合成图</button>
+                </div>
             </div>
-            <button class="download-btn" id="downloadBtn">💾 下载合成图</button>
-        </div>
-    </div>
 
-    <div class="canvas-area">
-        <canvas id="previewCanvas" width="800" height="800"></canvas>
-    </div>
-    <div class="info">
-        ✅ 使用说明：<br>
-        1. 点击上方按钮选择背景模板。<br>
-        2. 上传透明底 PNG 商品图。<br>
-        3. <strong>鼠标滚轮</strong>可快速缩放商品图。<br>
-        4. <strong>按住鼠标左键拖拽</strong>移动商品位置。<br>
-        5. 拖动滑块也可微调大小。<br>
-        6. 满意后点击“下载合成图”保存。<br>
-        📌 输出图片为 WebP 格式（支持透明，体积小），若浏览器不支持则自动降级为 PNG。
+            <div class="canvas-area">
+                <canvas id="previewCanvas" width="800" height="800"></canvas>
+            </div>
+            <div class="info">
+                ✅ 使用说明：<br>
+                1. 点击上方按钮选择背景模板。<br>
+                2. 上传透明底 PNG 商品图。<br>
+                3. <strong>鼠标滚轮</strong>可快速缩放商品图。<br>
+                4. <strong>按住鼠标左键拖拽</strong>移动商品位置。<br>
+                5. 拖动滑块也可微调大小。<br>
+                6. 满意后点击“下载合成图”保存。<br>
+                📌 输出图片为 PNG 格式（支持透明），宽度自动调整为 500px 以保证加载速度。
+            </div>
+        </div>
+
+        <!-- 示例区域（动态切换图片） -->
+        <div class="example-panel">
+            <h3>📷 参考示例（当前背景）</h3>
+            <div class="example-image">
+                <img id="sampleImage" src="sample_list.png" alt="示例合成图" style="max-width:100%;">
+            </div>
+            <div class="example-note">
+                💡 <strong>模仿建议：</strong><br>
+                • 商品图尽量居中偏下位置<br>
+                • 大小约占背景的 60%~80%<br>
+                • 可参考右侧示例的比例和位置<br>
+                • 如果您的商品有特殊造型，可适当调整
+            </div>
+            <p style="font-size:12px; color:#999; text-align:center; margin-top:10px;">提示：示例图片会随背景模板自动切换，请确保所有示例图已上传。</p>
+        </div>
     </div>
     <footer>
         提示：背景图请使用透明背景 PNG，商品图也需透明底，最终合成图保留透明通道。
@@ -153,12 +223,11 @@
 
 <script>
     // ---------- 配置：四个背景图（请替换成你自己的图片URL）----------
-    // 注意：这些图片必须和此HTML文件放在同一个文件夹，并且文件名要匹配
     const BACKGROUNDS = [
-        { name: "列表页背景", url: "bg_list.png" },
-        { name: "详情页背景", url: "bg_detail.png" },
-        { name: "推荐位背景", url: "bg_recommend.png" },
-        { name: "购物车背景", url: "bg_cart.png" }
+        { name: "列表页背景", url: "bg_list.png", sample: "sample_list.png" },
+        { name: "详情页背景", url: "bg_detail.png", sample: "sample_detail.png" },
+        { name: "推荐位背景", url: "bg_recommend.png", sample: "sample_recommend.png" },
+        { name: "购物车背景", url: "bg_cart.png", sample: "sample_cart.png" }
     ];
 
     let currentBgIndex = 0;
@@ -184,9 +253,20 @@
                 btn.classList.add('active');
                 currentBgIndex = idx;
                 loadBackground();
+                updateSampleImage(); // 切换示例图
             });
             container.appendChild(btn);
         });
+    }
+
+    function updateSampleImage() {
+        const sampleImg = document.getElementById('sampleImage');
+        const sampleUrl = BACKGROUNDS[currentBgIndex].sample;
+        sampleImg.src = sampleUrl;
+        sampleImg.onerror = () => {
+            sampleImg.src = 'https://via.placeholder.com/400x400?text=请上传示例图片';
+            sampleImg.alt = '示例图片缺失';
+        };
     }
 
     function loadBackground() {
@@ -221,7 +301,6 @@
         }
     }
 
-    // 上传商品图
     document.getElementById('productUpload').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -244,7 +323,6 @@
         reader.readAsDataURL(file);
     });
 
-    // 滑块缩放
     const slider = document.getElementById('scaleSlider');
     const scaleVal = document.getElementById('scaleValue');
     slider.addEventListener('input', (e) => {
@@ -253,7 +331,6 @@
         draw();
     });
 
-    // 鼠标滚轮缩放
     canvas.addEventListener('wheel', (e) => {
         if (!productImage) return;
         e.preventDefault();
@@ -267,7 +344,6 @@
         draw();
     }, { passive: false });
 
-    // 获取鼠标在画布上的坐标
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -287,7 +363,6 @@
         return { x: canvasX, y: canvasY };
     }
 
-    // 拖拽移动
     function onMouseDown(e) {
         if (!productImage) return;
         dragging = true;
@@ -306,7 +381,6 @@
         const dy = pos.y - dragStartY;
         productX = lastProductX + dx;
         productY = lastProductY + dy;
-        // 边界限制
         if (productImage) {
             const halfW = (productImage.width * productScale) / 2;
             const halfH = (productImage.height * productScale) / 2;
@@ -327,7 +401,6 @@
     window.addEventListener('touchmove', onMouseMove);
     window.addEventListener('touchend', onMouseUp);
 
-    // 下载合成图（WebP 优先，支持透明，自动缩小到800px宽）
     document.getElementById('downloadBtn').addEventListener('click', () => {
         try {
             if (!bgImage.complete || bgImage.naturalWidth === 0) {
@@ -338,9 +411,7 @@
                 alert("请先上传商品图");
                 return;
             }
-
-            // 1. 缩小输出尺寸：限制最大宽度为 800px（保持比例）
-            const maxWidth = 800;
+            const maxWidth = 500;
             let outputCanvas = canvas;
             if (canvas.width > maxWidth) {
                 const tempCanvas = document.createElement('canvas');
@@ -351,33 +422,19 @@
                 tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
                 outputCanvas = tempCanvas;
             }
-
-            // 2. 尝试输出 WebP（支持透明），质量 0.85
-            let dataURL = null;
-            let fileExt = 'webp';
-            try {
-                dataURL = outputCanvas.toDataURL('image/webp', 0.85);
-                if (dataURL.indexOf('image/webp') === -1) throw new Error('WebP not supported');
-            } catch (e) {
-                // 降级为 PNG
-                dataURL = outputCanvas.toDataURL('image/png');
-                fileExt = 'png';
-                console.warn("浏览器不支持 WebP，已降级为 PNG");
-            }
-
+            const dataURL = outputCanvas.toDataURL('image/png');
             const link = document.createElement('a');
-            link.download = `商品合成图_${BACKGROUNDS[currentBgIndex].name}.${fileExt}`;
+            link.download = `商品合成图_${BACKGROUNDS[currentBgIndex].name}.png`;
             link.href = dataURL;
             link.click();
-            
         } catch (err) {
             alert("下载失败：" + err.message);
-            console.error(err);
         }
     });
 
     initButtons();
     loadBackground();
+    updateSampleImage();
 </script>
 </body>
 </html>
